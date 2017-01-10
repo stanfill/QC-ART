@@ -1,10 +1,13 @@
-#' @param all_data - a data frame of all of the data to be analyzed
-#' @param baseline - vector identifying which rows of `all_data` are the baseline observations?
-#' @param variables - vector of numbers or column names identifying which columns are the variables to use to compute scores
-#' @param prop - how many latent variables should be retained?  proportion of variability explianed by the latent variables
+#' Computes QC-ART scores
+#' 
+#' @param all_data  a data frame of all of the data to be analyzed
+#' @param baseline  vector identifying which rows of `all_data` are the baseline observations?
+#' @param variables  vector of numbers or column names identifying which columns are the variables to use to compute scores
+#' @param prop  how many latent variables should be retained?  proportion of variability explianed by the latent variables
 #' 
 #' @return vector of QC-ART scores corresponding to the rows of `all_data`
-
+#' @export
+#' 
 
 qcart <- function(all_data, baseline, variables, prop = 0.95){
   scores <- rep(NA,nrow(all_data))
