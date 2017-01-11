@@ -19,4 +19,45 @@ The Amidan et al. data is built into the package and is loaded into your environ
 library(QCART)
 data("amidan_et_al")
 ```
-Now there should be a data frame called `amidan` loaded into your environment.
+
+```{r lubridate, include=FALSE}
+library(lubridate)
+amidan$Acq_Time_Start2 <- mdy_hm(amidan$Acq_Time_Start)
+chosen_inst <- "VOrbiETD04"
+```
+Now there should be a data frame called `amidan` loaded into your environment.  In short, the `amdian` data frame consists of `r ncol(amidan)` variables measured on `r nrow(amidan)` LC-MS experiments.  The data were collected using `r length(unique(amidan$Instument))` different instruments over the course of `r round_date(min(amidan$Acq_Time_Start2),unit='day')` to `r round_date(max(amidan$Acq_Time_Start2),unit='day')`.
+
+# QC-ART
+
+To apply QC-ART to the `amidan` data we need to separate the data into instruments.  For this example we consider the instrument called `r chosen_inst`, which consists of `r length(which(amidan$Instrument==chosen_inst))`.  To do this we use the package `dplyr`.
+
+```{r subset,message=FALSE}
+library(dplyr)
+chosen_inst <- "VOrbiETD04"
+vorb_04 <- filter(amidan,Instrument==chosen_inst)
+```
+
+To get a feel for the data, let's plot a few of the variables we know to be of interest over the course of experiments analyzed with the `r chosen_inst` instrument.  We make plots with the `ggplot2` package and use the `lubridate` to make our lives easier when dealing with date information.
+
+```{r plot,messages=FALSE,warning=FALSE,fig.subcap=c("P 2C","MS1_Count"),fig.width=4,fig.height=4}
+library(ggplot2)
+library(lubridate)
+vorb_04$Acq_Time_Start <- mdy_hm(vorb_04$Acq_Time_Start)
+qplot(Acq_Time_Start,P_2C,data=vorb_04,xlab="Date")
+qplot(Acq_Time_Start,MS1_Count,data=vorb_04,xlab="Date")
+```
+
+
+To apply QC-ART, the variables used to compute QC-ART scores needs to be chosen.  Based on the results of the initial analysis of these data (by Amidan et al.), we chose the following variables.
+
+```{r vars}
+chosen_vars <- c("P_2C","MS1_Count","MS2_Count","MS1_2B","MS2_1","MS2_2","MS2_3","MS2_4A","MS2_4B","RT_MS_Q1","RT_MS_Q4","RT_MSMS_Q1","RT_MSMS_Q4","XIC_WideFrac")
+```
+
+Next we need to select a baseline set against which all future experiments will be compared.  Assume for now that the experiments run early in the study are of good quality and we want to determine if the later runs are of the same quality.  Thus the first 10 instrument runs serve as the baseline and all further experiments are compared against those 10.  With that, we can compute QC-ART scores and plot them over time.
+
+```{r run_qcart}
+vorb_04 <- arrange(vorb_04,Acq_Time_Start)
+bline_ob <- 1:10
+scores <- qcart(vorb_04,bline_ob,variables = chosen_vars)
+```

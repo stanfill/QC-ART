@@ -11,8 +11,8 @@
 
 qcart <- function(all_data, baseline, variables, prop = 0.95){
   scores <- rep(NA,nrow(all_data))
-  for(i in 1:nrow(alldata)){
-    both <- apply_sign2_mod(alldata[i,],baseobs = baseline, vars=variables, explvar=prop)
+  for(i in 1:nrow(all_data)){
+    both <- apply_sign2_mod(all_data[i,],baseobs = baseline, vars=variables, explvar=prop)
     scores[i] <- both$Modified
   }
   return(scores)
