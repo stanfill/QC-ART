@@ -12,7 +12,7 @@ vignette: >
 # Introduction
 This document shows by example how to use the package `QCART` to track the quality of mass spectrometry experiments in near real time.  This is done using publicly available data that has previously been analyzed by [Amidan et al. (2014)](http://pubs.acs.org/doi/abs/10.1021/pr401143e).
 
-#Data
+# Data
 
 The Amidan et al. data is built into the package and is loaded into your environment with the following (the `QCART` package is also loaded here in case you haven't done that yet).
 ```{r load}
@@ -59,5 +59,9 @@ Next we need to select a baseline set against which all future experiments will 
 ```{r run_qcart}
 vorb_04 <- arrange(vorb_04,Acq_Time_Start)
 bline_ob <- 1:10
-scores <- qcart(vorb_04,bline_ob,variables = chosen_vars)
+vorb_04$Baseline <- FALSE
+vorb_04$Baseline[bline_ob] <- TRUE
+vorb_04$QC_Art <- qcart(all_data = vorb_04, baseline = bline_ob, variables = chosen_vars)
+qplot(Acq_Time_Start,QC_Art,data=vorb_04,colour=Baseline)+xlab("Date")+ylab("QC-ART Score")
+
 ```

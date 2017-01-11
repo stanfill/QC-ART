@@ -12,10 +12,19 @@
 qcart <- function(all_data, baseline, variables, prop = 0.95){
   scores <- rep(NA,nrow(all_data))
   for(i in 1:nrow(all_data)){
-    both <- apply_sign2_mod(all_data[i,],baseobs = baseline, vars=variables, explvar=prop)
+    both <- apply_sign2_mod(all_data[i,],baseobs = all_data[baseline,], vars = variables, explvar = prop)
     scores[i] <- both$Modified
   }
   return(scores)
+}
+
+apply_sign2_mod <- function(x,baseobs,vars, mads=FALSE,...){
+  fullx <- rbind(x,baseobs)
+  res <- sign2_mod(fullx[,vars], return_mads = mads, keep_all=TRUE,...)
+  if(mads){
+    return(res)
+  }
+  return(list(Modified=res$x.dist_mod[1], Original=res$x.dist_orig[1]))
 }
 
 #This is a modified version of mvoutlier's sign2 function
@@ -93,11 +102,3 @@ sign2_mod <- function (x, makeplot = FALSE, explvar = 0.95, qcrit = 0.975, retur
   list(x.dist_orig = x.dist, x.dist_mod = xpc.normnew)
 } 
 
-apply_sign2_mod <- function(x,baseobs,vars, mads=FALSE,...){
-  fullx <- rbind(x,baseobs)
-  res <- sign2_mod(fullx[,vars], return_mads = mads, keep_all=TRUE,...)
-  if(mads){
-    return(res)
-  }
-  return(list(Modified=res$x.dist_mod[1], Original=res$x.dist_orig[1]))
-}
