@@ -63,5 +63,4 @@ vorb_04$Baseline <- FALSE
 vorb_04$Baseline[bline_ob] <- TRUE
 vorb_04$QC_Art <- qcart(all_data = vorb_04, baseline = bline_ob, variables = chosen_vars)
 qplot(Acq_Time_Start,QC_Art,data=vorb_04,colour=Baseline)+xlab("Date")+ylab("QC-ART Score")
-
 ```
