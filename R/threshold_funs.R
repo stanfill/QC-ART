@@ -35,8 +35,8 @@ compute_threshold <- function(scores, baseline, time_stamps, type = 'static', pe
   if("dynamic"%in%type){
     if(!require(dlm)){
       warning("The 'dlm' package is missing and must be installed to compute dynamic thresholds, therefore only static threhsolds will be returned.")
+      type <- "static"
     }
-    type <- "static"
   }
   
   
@@ -64,7 +64,7 @@ compute_threshold <- function(scores, baseline, time_stamps, type = 'static', pe
       lnorm_sd <- sqrt(anova(lin_mod)[1,3])
     }else{
       lnorm_mean <- lin_mod$coefficients[1]+lin_mod$coefficients[2]*qc_data_frame$Time
-      lnorm_sd <- sqrt(anova(lin_mod)[2,3])
+      lnorm_sd <- sqrt(anova(lin_mod)[2,3])*sqrt(1+1/nrow(qc_baseline))
     }
     
     #The threshold is the 
@@ -79,25 +79,65 @@ compute_threshold <- function(scores, baseline, time_stamps, type = 'static', pe
     ##----------------------------------------##
     ##---- Dynamic threshold computation  ----##
     ##----------------------------------------##
-    qc_data_frame$Dynamic_Threshold <- NA
-    warning("Dynamic thresholds aren't currently available.")    
+    #Define the DLM model
+    buildCutpt <- function(theta,xvar){
+      dlmModReg(X=xvar, dV=exp(theta[1]), dW=exp(theta[2:3]),addInt=TRUE) 
+    }
+    npars <- 3
+    
+    #Estimate parameters based on baseline data only
+    fit <- dlmMLE(log(qc_baseline$Scores),parm=rep(0,npars),buildCutpt, xvar=matrix(qc_baseline$Time,ncol=1))
+    
+    #Now apply the model to the full dataset
+    modCutpt <- buildCutpt(fit$par, xvar=qc_data_frame$Time)
+    
+    #filter estiamte for full data set
+    filtQC <- dlmFilter(log(qc_data_frame$Scores),modCutpt)
+    filtPred <- filtQC$f
+    filtSD <- residuals(filtQC,sd=TRUE)$sd
+    
+    qc_data_frame$Dynamic_Threshold <- qlnorm(perc,meanlog=filtPred,sdlog=filtSD)
 
-    dynamic_model <- NULL
+    dynamic_model <- filtQC
     
   }else{
     dynamic_model <- NULL
   }
   
-  return(list(qc_data_frame, Static_Model = static_model, Dynamic_Model = dynamic_model))
+  return(list(Results=qc_data_frame, Static_Model = static_model, Dynamic_Model = dynamic_model))
 }
 
+# ##------ Testing -------##
+# library(dlm)
+# scores <- vorb_04$QC_Art
+# baseline <- vorb_04$Baseline
+# time_stamps <- vorb_04$Acq_Time_Start
+# 
+# qc_data_frame <- compute_threshold(scores = scores, baseline = baseline, time_stamps = time_stamps, type='static')
+# qc_baseline <- filter(qc_data_frame,Baseline)
+# 
+# buildCutpt <- function(theta,xvar){
+#   dlmModReg(X=xvar, dV=exp(theta[1]), dW=exp(theta[2:3]),addInt=TRUE) #+ dlmModARMA(ar = c(theta[4]))
+# }
+# npars <- 3
+# 
+# #Estimate parameters based on baseline data only
+# fit <- dlmMLE(log(qc_baseline$Scores),parm=rep(0,npars),buildCutpt, xvar=matrix(qc_baseline$Time,ncol=1))
+# 
+# #Now apply the model to the full dataset
+# modCutpt <- buildCutpt(fit$par, xvar=qc_data_frame$Time)
+# 
+# #filter estiamte for full data set
+# filtQC <- dlmFilter(log(qc_data_frame$Scores),modCutpt)
+# filtPred <- filtQC$f
+# filtSD <- residuals(filtQC,sd=TRUE)$sd
+# 
+# qc_data_frame$Dynamic_Threshold <- pmin(qlnorm(0.9,meanlog=filtPred,sdlog=filtSD),200)
+# 
+# 
+# qplot(Time_Stamp,Scores,data=qc_data_frame,colour=Baseline)+xlab("Date")+ylab("QC-ART Score")+
+#   geom_line(aes(Time_Stamp,Dynamic_Threshold),colour=1)
 
-#scores <- vorb_04$QC_Art
-#baseline <- vorb_04$Baseline
-#time_stamps <- vorb_04$Acq_Time_Start
 
-#data_with_thresh <- compute_threshod(scores = scores, baseline = baseline, time_stamps = time_stamps, type='static')
 
-#qplot(Time,Scores,data=data_with_thresh,colour=Baseline)+xlab("Date")+ylab("QC-ART Score")+
-# geom_line(aes(Time,Static_Threshold),colour=1)
 

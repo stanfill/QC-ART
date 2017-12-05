@@ -35,11 +35,12 @@ To apply QC-ART to the `amidan` data we need to separate the data into instrumen
 library(dplyr)
 chosen_inst <- "VOrbiETD04"
 vorb_04 <- filter(amidan,Instrument==chosen_inst)
+vorb_04 <- vorb_04[-c(1:6),]
 ```
 
 To get a feel for the data, let's plot a few of the variables we know to be of interest over the course of experiments analyzed with the `r chosen_inst` instrument.  We make plots with the `ggplot2` package and use the `lubridate` to make our lives easier when dealing with date information.
 
-```{r plot,messages=FALSE,warning=FALSE,fig.subcap=c("P 2C","MS1_Count"),fig.width=4,fig.height=4}
+```{r plot,messages=FALSE,warning=FALSE,fig.subcap=c("P 2C","MS1_Count"),fig.width=4,fig.height=4,fig.align="center"}
 library(ggplot2)
 library(lubridate)
 vorb_04$Acq_Time_Start <- mdy_hm(vorb_04$Acq_Time_Start)
@@ -56,9 +57,9 @@ chosen_vars <- c("P_2C","MS1_Count","MS2_Count","MS1_2B","MS2_1","MS2_2","MS2_3"
 
 Next we need to select a baseline set against which all future experiments will be compared.  Assume for now that the experiments run early in the study are of good quality and we want to determine if the later runs are of the same quality.  Thus the first 10 instrument runs serve as the baseline and all further experiments are compared against those 10.  With that, we can compute QC-ART scores and plot them over time.
 
-```{r run_qcart}
+```{r run_qcart,fig.align="center",fig.width=6,fig.height=6}
 vorb_04 <- arrange(vorb_04,Acq_Time_Start)
-bline_ob <- 1:10
+bline_ob <- 1:20
 vorb_04$Baseline <- FALSE
 vorb_04$Baseline[bline_ob] <- TRUE
 vorb_04$QC_Art <- qcart(all_data = vorb_04, baseline = bline_ob, variables = chosen_vars)
@@ -67,13 +68,20 @@ qplot(Acq_Time_Start,QC_Art,data=vorb_04,colour=Baseline)+xlab("Date")+ylab("QC-
 
 Once scores are computed, a threshold value needs to be determined in order to identify which samples may need to be reanalyzed.  The `compute_threshold` function takes the QC-ART scores (computed by `qcart`), baseline indicators and time-stamps then returns a `data.frame` that contains the cores, time-stamps and threshold values.  
 
-```{r sthresh}
-qcart_threshold <- compute_threshold(scores = vorb_04$QC_Art, baseline = vorb_04$Baseline, time_stamps = vorb_04$Acq_Time_Start, type='static')
+```{r sthresh,fig.align="center",fig.width=6,fig.height=6}
+s_threshold <- compute_threshold(scores = vorb_04$QC_Art, baseline = vorb_04$Baseline, time_stamps = vorb_04$Acq_Time_Start, type='static')
+sthresh_df <- s_threshold$Results
 
-qplot(Time_Stamp,Scores,data=qcart_threshold,colour=Baseline)+xlab("Date")+ylab("QC-ART Score")+
+qplot(Time_Stamp,Scores,data=sthresh_df,colour=Baseline)+xlab("Date")+ylab("QC-ART Score")+
   geom_line(aes(Time_Stamp,Static_Threshold),colour=1)
 ```
 
 The column `Static_Threshold` contains the static threshold value corresponding to each QC-ART score.  Internally, 'static threshold value may `compute_threshold` fits to models to the QC-ART scores: a simple log-linear regression model (SLR) where the time since the first instrument run is used as the only covariate, and a single mean model.  If the SLR model accounts for a statistically significant amount of the variability in the baseline scores (at the 0.05 level), then that model is used.  Otherwise, the single mean model is used.  The former will return threshold values that differ for each QC-ART score depending upon the time since the first instrument run, while the latter will return a single value cutoff value for all QC-ART scores.
 
+```{r dthresh, fig.width=5,fig.height=5,fig.align="center",message=FALSE}
+d_threshold <- compute_threshold(scores = vorb_04$QC_Art, baseline = vorb_04$Baseline, time_stamps = vorb_04$Acq_Time_Start, type = 'dynamic')
+dthresh_df <- d_threshold$Results
 
+qplot(Time_Stamp,Scores,data=dthresh_df,colour=Baseline)+xlab("Date")+ylab("QC-ART Score")+
+  geom_line(aes(Time_Stamp,Dynamic_Threshold),colour=1)
+```

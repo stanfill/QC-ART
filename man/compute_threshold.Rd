@@ -19,7 +19,14 @@ compute_threshold(scores, baseline, time_stamps, type = "static",
 \item{percentile}{what percentile of the model should be use as a cut-off, e.g. 0.9, 0.95, or 0.99}
 }
 \value{
-a data.frame containing the QC-ART scores, baseline indicators, time stamps and threshold values for each qc-art score
+a list containing
+\tabular{ll}{
+Results  \tab a `data.frame` with columns for the QC-ART scores, baseline indicators, time stamps and threshold values for each qc-art score\cr
+ \tab \cr
+Static_Model  \tab the 'lm' object that defines the final static model fit to the QC-ART scores \cr
+ \tab \cr
+Dynamic_Model  \tab the 'lm' object that defines the final static model fit to the QC-ART scores \cr
+ }
 }
 \description{
 This function will compute threshold values for QC-ART scores computed using the `qcart` function.
