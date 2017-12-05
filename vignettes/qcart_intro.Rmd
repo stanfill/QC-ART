@@ -64,3 +64,16 @@ vorb_04$Baseline[bline_ob] <- TRUE
 vorb_04$QC_Art <- qcart(all_data = vorb_04, baseline = bline_ob, variables = chosen_vars)
 qplot(Acq_Time_Start,QC_Art,data=vorb_04,colour=Baseline)+xlab("Date")+ylab("QC-ART Score")
 ```
+
+Once scores are computed, a threshold value needs to be determined in order to identify which samples may need to be reanalyzed.  The `compute_threshold` function takes the QC-ART scores (computed by `qcart`), baseline indicators and time-stamps then returns a `data.frame` that contains the cores, time-stamps and threshold values.  
+
+```{r sthresh}
+qcart_threshold <- compute_threshold(scores = vorb_04$QC_Art, baseline = vorb_04$Baseline, time_stamps = vorb_04$Acq_Time_Start, type='static')
+
+qplot(Time_Stamp,Scores,data=qcart_threshold,colour=Baseline)+xlab("Date")+ylab("QC-ART Score")+
+  geom_line(aes(Time_Stamp,Static_Threshold),colour=1)
+```
+
+The column `Static_Threshold` contains the static threshold value corresponding to each QC-ART score.  Internally, 'static threshold value may `compute_threshold` fits to models to the QC-ART scores: a simple log-linear regression model (SLR) where the time since the first instrument run is used as the only covariate, and a single mean model.  If the SLR model accounts for a statistically significant amount of the variability in the baseline scores (at the 0.05 level), then that model is used.  Otherwise, the single mean model is used.  The former will return threshold values that differ for each QC-ART score depending upon the time since the first instrument run, while the latter will return a single value cutoff value for all QC-ART scores.
+
+

@@ -12,7 +12,7 @@
 #' @export
 #' 
 
-compute_threshod <- function(scores, baseline, time_stamps, type = 'static', perc = 0.95){
+compute_threshold <- function(scores, baseline, time_stamps, type = 'static', perc = 0.95){
   
   #Check that the scores, baseline and time_stamps are all the same length
   if(length(scores)!=length(baseline) || length(scores)!=length(time_stamps)){
@@ -27,8 +27,8 @@ compute_threshod <- function(scores, baseline, time_stamps, type = 'static', per
   
   
   #Order the scores and baseline by time_stamps
-  qc_data_frame <- data.frame(Scores=scores, Baseline=baseline, T_Stamps=time_stamps)
-  qc_data_frame <- qc_data_frame%>%arrange(T_Stamps)%>%mutate(Time=difftime(T_Stamps,min(T_Stamps),units='hours'))
+  qc_data_frame <- data.frame(Scores=scores, Baseline=baseline, Time_Stamp=time_stamps)
+  qc_data_frame <- qc_data_frame%>%arrange(Time_Stamp)%>%mutate(Time=difftime(Time_Stamp,min(Time_Stamp),units='hours'))
   qc_data_frame$Time <- as.numeric(qc_data_frame$Time)
   
   #filter down to baseline data

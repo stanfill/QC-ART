@@ -21,4 +21,3 @@ vector of QC-ART scores corresponding to the rows of `all_data`
 \description{
 Computes QC-ART scores
 }
-
