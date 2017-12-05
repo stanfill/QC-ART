@@ -8,7 +8,14 @@
 #' @param type  character specifying the type of threhsold to be returned: "static", "dynamic" or "both"
 #' @param percentile what percentile of the model should be use as a cut-off, e.g. 0.9, 0.95, or 0.99
 #' 
-#' @return a data.frame containing the QC-ART scores, baseline indicators, time stamps and threshold values for each qc-art score
+#' @return  a list containing
+#' \tabular{ll}{
+#' Results  \tab a `data.frame` with columns for the QC-ART scores, baseline indicators, time stamps and threshold values for each qc-art score\cr
+#'  \tab \cr
+#' Static_Model  \tab the 'lm' object that defines the final static model fit to the QC-ART scores \cr
+#'  \tab \cr
+#' Dynamic_Model  \tab the 'lm' object that defines the final static model fit to the QC-ART scores \cr
+#'  }
 #' @export
 #' 
 
@@ -24,6 +31,14 @@ compute_threshold <- function(scores, baseline, time_stamps, type = 'static', pe
   if(type=="both"){
     type <- c("static","dynamic")
   }
+  
+  if("dynamic"%in%type){
+    if(!require(dlm)){
+      warning("The 'dlm' package is missing and must be installed to compute dynamic thresholds, therefore only static threhsolds will be returned.")
+    }
+    type <- "static"
+  }
+  
   
   
   #Order the scores and baseline by time_stamps
@@ -52,7 +67,11 @@ compute_threshold <- function(scores, baseline, time_stamps, type = 'static', pe
       lnorm_sd <- sqrt(anova(lin_mod)[2,3])
     }
     
+    #The threshold is the 
     qc_data_frame$Static_Threshold <- qlnorm(perc, meanlog = lnorm_mean, sdlog = lnorm_sd)
+    static_model <- lin_mod
+  }else{
+    static_model <- NULL
   }
   
   if("dynamic"%in%type){
@@ -60,12 +79,16 @@ compute_threshold <- function(scores, baseline, time_stamps, type = 'static', pe
     ##----------------------------------------##
     ##---- Dynamic threshold computation  ----##
     ##----------------------------------------##
-    
+    qc_data_frame$Dynamic_Threshold <- NA
     warning("Dynamic thresholds aren't currently available.")    
 
+    dynamic_model <- NULL
+    
+  }else{
+    dynamic_model <- NULL
   }
   
-  return(qc_data_frame)
+  return(list(qc_data_frame, Static_Model = static_model, Dynamic_Model = dynamic_model))
 }
 
 
