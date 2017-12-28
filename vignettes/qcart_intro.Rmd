@@ -68,7 +68,7 @@ qplot(Acq_Time_Start,QC_Art,data=vorb_04,colour=Baseline)+xlab("Date")+ylab("QC-
 
 Once scores are computed, threshold values need to be determined.  Because this is a post-hoc analysis, a QC-ART score that is above the computed threshold should be investigated to see if the sample should be rerun.  The goal of QC-ART, however, is for the scores and baselines to be computed in real-time.  That way, changes in data quality could suggest an instrumentation issue.  The `compute_threshold` function takes the QC-ART scores (computed by `qcart`), baseline indicators and time-stamps then returns a `data.frame` that contains the scores, time-stamps and threshold values.  
 
-```{r sthresh,fig.align="center",fig.width=6,fig.height=6}
+```{r sthresh, fig.width=8,fig.height=5,fig.align="center",message=FALSE}
 s_threshold <- compute_threshold(scores = vorb_04$QC_Art, baseline = vorb_04$Baseline, time_stamps = vorb_04$Acq_Time_Start, type='static')
 sthresh_df <- s_threshold$Results
 
@@ -78,7 +78,9 @@ qplot(Time_Stamp,Scores,data=sthresh_df,colour=Baseline)+xlab("Date")+ylab("QC-A
 
 The column `Static_Threshold` contains the static threshold value corresponding to each QC-ART score.  Internally, the `compute_threshold` function fits two models to the QC-ART scores: a simple log-linear regression model (SLR) where the time since the first instrument run is used as the only covariate, and a single mean model.  If the SLR model accounts for a statistically significant amount of the variability in the baseline scores (at the 0.05 level) relative to the single mean model, then threshold values from the SLR model are returned.  Otherwise, the single mean model is used.  The former will return threshold values that differ for each QC-ART score depending upon the time since the first instrument run, while the latter will return the same threshold value for all QC-ART scores.
 
-```{r dthresh, fig.width=5,fig.height=5,fig.align="center",message=FALSE}
+To compute a dynamic threhsold, change the `type` option in the `compute_threshold` function to `"dynamic"`.  Below the dynamic threshold is compuated then plotted.
+
+```{r dthresh, fig.width=8,fig.height=5,fig.align="center",message=FALSE}
 d_threshold <- compute_threshold(scores = vorb_04$QC_Art, baseline = vorb_04$Baseline, time_stamps = vorb_04$Acq_Time_Start, type = 'dynamic')
 dthresh_df <- d_threshold$Results
 
