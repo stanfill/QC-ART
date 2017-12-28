@@ -9,7 +9,7 @@ qcart(all_data, baseline, variables, prop = 0.95)
 \arguments{
 \item{all_data}{a data frame of all of the data to be analyzed}
 
-\item{baseline}{vector identifying which rows of `all_data` are the baseline observations?}
+\item{baseline}{vector identifying which rows of `all_data` are the baseline observations}
 
 \item{variables}{vector of numbers or column names identifying which columns are the variables to use to compute scores}
 
@@ -20,4 +20,39 @@ vector of QC-ART scores corresponding to the rows of `all_data`
 }
 \description{
 Computes QC-ART scores
+}
+\examples{
+
+library(lubridate)
+library(QCART)
+library(dplyr)
+
+#Load the Amidan et al. (2014) dataset
+data("amidan_et_al")  
+
+#Use `lubridate` to  make wokring with time stamps easier
+amidan$Acq_Time_Start <- mdy_hm(amidan$Acq_Time_Start)
+
+#Choose one particular instrument to analyze and arrange the rows by time
+chosen_inst <- "VOrbiETD04"
+vorb_04 <- filter(amidan,Instrument==chosen_inst)
+vorb_04 <- arrange(vorb_04,Acq_Time_Start)
+
+#Remove the first 6 rows that occured prior to an instrument cleaning
+vorb_04 <- vorb_04[-c(1:6),]
+
+#Choose the variables that will be used to compute QC-ART scores
+chosen_vars <- c("P_2C","MS1_Count","MS2_Count","MS1_2B","MS2_1","MS2_2","MS2_3","MS2_4A","MS2_4B","RT_MS_Q1","RT_MS_Q4","RT_MSMS_Q1","RT_MSMS_Q4","XIC_WideFrac")
+
+#Define which observations will be used as the baseline
+bline_ob <- 1:50
+vorb_04$Baseline <- FALSE
+vorb_04$Baseline[bline_ob] <- TRUE
+
+#Compute the scores for that instrument, baseline set and variables
+vorb_04$QC_Art <- qcart(all_data = vorb_04, baseline = bline_ob, variables = chosen_vars)
+
+#Plot the scores over time
+qplot(Acq_Time_Start,QC_Art,data=vorb_04,colour=Baseline)+xlab("Date")+ylab("QC-ART Score")
+
 }

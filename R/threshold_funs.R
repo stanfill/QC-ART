@@ -40,7 +40,6 @@ compute_threshold <- function(scores, baseline, time_stamps, type = 'static', pe
   }
   
   
-  
   #Order the scores and baseline by time_stamps
   qc_data_frame <- data.frame(Scores=scores, Baseline=baseline, Time_Stamp=time_stamps)
   qc_data_frame <- qc_data_frame%>%arrange(Time_Stamp)%>%mutate(Time=difftime(Time_Stamp,min(Time_Stamp),units='hours'))

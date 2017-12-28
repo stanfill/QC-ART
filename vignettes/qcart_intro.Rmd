@@ -10,26 +10,27 @@ vignette: >
 ---
 
 # Introduction
-This document shows by example how to use the package `QCART` to track the quality of mass spectrometry experiments in near real time.  This is done using publicly available data that has previously been analyzed by [Amidan et al. (2014)](http://pubs.acs.org/doi/abs/10.1021/pr401143e).
+This document shows by example how to use the package `QCART` to track the quality of mass spectrometry experiments in near real time.  In this illustration we use publicly available data that was analyzed by [Amidan et al. (2014)](http://pubs.acs.org/doi/abs/10.1021/pr401143e).
 
 # Data
 
-The Amidan et al. data is built into the package and is loaded into your environment with the following (the `QCART` package is also loaded here in case you haven't done that yet).
+The Amidan et al. data is supplied with the `QCART` package.  It can be loaded into your environment with the following.
 ```{r load}
 library(QCART)
 data("amidan_et_al")
 ```
 
-```{r lubridate, include=FALSE}
+```{r forease, include=FALSE}
 library(lubridate)
-amidan$Acq_Time_Start2 <- mdy_hm(amidan$Acq_Time_Start)
+amidan$Acq_Time_Start <- mdy_hm(amidan$Acq_Time_Start)
 chosen_inst <- "VOrbiETD04"
 ```
-Now there should be a data frame called `amidan` loaded into your environment.  In short, the `amdian` data frame consists of `r ncol(amidan)` variables measured on `r nrow(amidan)` LC-MS experiments.  The data were collected using `r length(unique(amidan$Instument))` different instruments over the course of `r round_date(min(amidan$Acq_Time_Start2),unit='day')` to `r round_date(max(amidan$Acq_Time_Start2),unit='day')`.
+
+Now there should be a data frame called `amidan` loaded into your environment.  In short, the `amdian` data frame consists of `r ncol(amidan)` variables measured on `r nrow(amidan)` LC-MS experiments.  The data were collected using `r length(unique(amidan$Instument))` different instruments from `r round_date(min(amidan$Acq_Time_Start),unit='day')` to `r round_date(max(amidan$Acq_Time_Start),unit='day')`.
 
 # QC-ART
 
-To apply QC-ART to the `amidan` data we need to separate the data into instruments.  For this example we consider the instrument called `r chosen_inst`, which consists of `r length(which(amidan$Instrument==chosen_inst))`.  To do this we use the package `dplyr`.
+The goal of QC-ART is to identify changes in the quality of data produced by MS instruments.  We therefore subset the `amidan` data set to a single instrument before analysis using the `dplyr::filter` function.  For this example we consider the instrument called `r chosen_inst`, which consists of `r length(which(amidan$Instrument==chosen_inst))` instrument runs.   In the final line of the following, the first six instrument runs from the analysis are removed because they occur well before the rest of the data are collected.
 
 ```{r subset,message=FALSE}
 library(dplyr)
@@ -38,35 +39,34 @@ vorb_04 <- filter(amidan,Instrument==chosen_inst)
 vorb_04 <- vorb_04[-c(1:6),]
 ```
 
-To get a feel for the data, let's plot a few of the variables we know to be of interest over the course of experiments analyzed with the `r chosen_inst` instrument.  We make plots with the `ggplot2` package and use the `lubridate` to make our lives easier when dealing with date information.
+To get a feel for the `r chosen_inst` instrument data, two of the variables thought to be associated with data quality ("P_2C" and "MS1_Count") are plotted over time.  The packages `ggplot2` and `lubridate` are used to make the figures below.  Note that `lubridate` is suggested by the `QCART` package but `ggplot2` is not.
 
 ```{r plot,messages=FALSE,warning=FALSE,fig.subcap=c("P 2C","MS1_Count"),fig.width=4,fig.height=4,fig.align="center"}
-library(ggplot2)
 library(lubridate)
-vorb_04$Acq_Time_Start <- mdy_hm(vorb_04$Acq_Time_Start)
+amidan$Acq_Time_Start <- mdy_hm(amidan$Acq_Time_Start)
+library(ggplot2)
 qplot(Acq_Time_Start,P_2C,data=vorb_04,xlab="Date")
 qplot(Acq_Time_Start,MS1_Count,data=vorb_04,xlab="Date")
 ```
 
-
-To apply QC-ART, the variables used to compute QC-ART scores needs to be chosen.  Based on the results of the initial analysis of these data (by Amidan et al.), we chose the following variables.
+To apply QC-ART, the variables used to compute QC-ART scores need to be chosen.  Based on the results of the initial analysis of these data (by Amidan et al. (2014)), the following variables were chosen.
 
 ```{r vars}
 chosen_vars <- c("P_2C","MS1_Count","MS2_Count","MS1_2B","MS2_1","MS2_2","MS2_3","MS2_4A","MS2_4B","RT_MS_Q1","RT_MS_Q4","RT_MSMS_Q1","RT_MSMS_Q4","XIC_WideFrac")
 ```
 
-Next we need to select a baseline set against which all future experiments will be compared.  Assume for now that the experiments run early in the study are of good quality and we want to determine if the later runs are of the same quality.  Thus the first 10 instrument runs serve as the baseline and all further experiments are compared against those 10.  With that, we can compute QC-ART scores and plot them over time.
+Next a baseline set against which all future experiments will be compared must be chosen.  Assume for now that the experiments run early in the study are of good quality and we want to determine if the later runs are of the same quality.  Thus the first 50 instrument runs serve as the baseline and all further experiments are compared against those 50.  With that, the QC-ART scores are compueted using the `qcart` function them plotted over time.
 
 ```{r run_qcart,fig.align="center",fig.width=6,fig.height=6}
 vorb_04 <- arrange(vorb_04,Acq_Time_Start)
-bline_ob <- 1:20
+bline_ob <- 1:50
 vorb_04$Baseline <- FALSE
 vorb_04$Baseline[bline_ob] <- TRUE
 vorb_04$QC_Art <- qcart(all_data = vorb_04, baseline = bline_ob, variables = chosen_vars)
 qplot(Acq_Time_Start,QC_Art,data=vorb_04,colour=Baseline)+xlab("Date")+ylab("QC-ART Score")
 ```
 
-Once scores are computed, a threshold value needs to be determined in order to identify which samples may need to be reanalyzed.  The `compute_threshold` function takes the QC-ART scores (computed by `qcart`), baseline indicators and time-stamps then returns a `data.frame` that contains the cores, time-stamps and threshold values.  
+Once scores are computed, threshold values need to be determined.  Because this is a post-hoc analysis, a QC-ART score that is above the computed threshold should be investigated to see if the sample should be rerun.  The goal of QC-ART, however, is for the scores and baselines to be computed in real-time.  That way, changes in data quality could suggest an instrumentation issue.  The `compute_threshold` function takes the QC-ART scores (computed by `qcart`), baseline indicators and time-stamps then returns a `data.frame` that contains the scores, time-stamps and threshold values.  
 
 ```{r sthresh,fig.align="center",fig.width=6,fig.height=6}
 s_threshold <- compute_threshold(scores = vorb_04$QC_Art, baseline = vorb_04$Baseline, time_stamps = vorb_04$Acq_Time_Start, type='static')
@@ -76,7 +76,7 @@ qplot(Time_Stamp,Scores,data=sthresh_df,colour=Baseline)+xlab("Date")+ylab("QC-A
   geom_line(aes(Time_Stamp,Static_Threshold),colour=1)
 ```
 
-The column `Static_Threshold` contains the static threshold value corresponding to each QC-ART score.  Internally, 'static threshold value may `compute_threshold` fits to models to the QC-ART scores: a simple log-linear regression model (SLR) where the time since the first instrument run is used as the only covariate, and a single mean model.  If the SLR model accounts for a statistically significant amount of the variability in the baseline scores (at the 0.05 level), then that model is used.  Otherwise, the single mean model is used.  The former will return threshold values that differ for each QC-ART score depending upon the time since the first instrument run, while the latter will return a single value cutoff value for all QC-ART scores.
+The column `Static_Threshold` contains the static threshold value corresponding to each QC-ART score.  Internally, the `compute_threshold` function fits two models to the QC-ART scores: a simple log-linear regression model (SLR) where the time since the first instrument run is used as the only covariate, and a single mean model.  If the SLR model accounts for a statistically significant amount of the variability in the baseline scores (at the 0.05 level) relative to the single mean model, then threshold values from the SLR model are returned.  Otherwise, the single mean model is used.  The former will return threshold values that differ for each QC-ART score depending upon the time since the first instrument run, while the latter will return the same threshold value for all QC-ART scores.
 
 ```{r dthresh, fig.width=5,fig.height=5,fig.align="center",message=FALSE}
 d_threshold <- compute_threshold(scores = vorb_04$QC_Art, baseline = vorb_04$Baseline, time_stamps = vorb_04$Acq_Time_Start, type = 'dynamic')
