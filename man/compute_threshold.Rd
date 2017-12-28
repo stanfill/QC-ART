@@ -31,3 +31,46 @@ Dynamic_Model  \tab the 'lm' object that defines the final static model fit to t
 \description{
 This function will compute threshold values for QC-ART scores computed using the `qcart` function.
 }
+\examples{
+#Compute the QC-ART scores.  For step-by-step instructions, see the documentation
+#for the `qcart` function
+library(lubridate)
+library(QCART)
+library(dplyr)
+library(ggplot2)
+data("amidan_et_al")  
+amidan$Acq_Time_Start <- mdy_hm(amidan$Acq_Time_Start)
+chosen_inst <- "VOrbiETD04"
+vorb_04 <- filter(amidan,Instrument==chosen_inst)
+vorb_04 <- arrange(vorb_04,Acq_Time_Start)
+vorb_04 <- vorb_04[-c(1:6),]
+chosen_vars <- c("P_2C","MS1_Count","MS2_Count","MS1_2B","MS2_1","MS2_2","MS2_3","MS2_4A","MS2_4B","RT_MS_Q1","RT_MS_Q4","RT_MSMS_Q1","RT_MSMS_Q4","XIC_WideFrac")
+bline_ob <- 1:50
+vorb_04$Baseline <- FALSE
+vorb_04$Baseline[bline_ob] <- TRUE
+vorb_04$QC_Art <- qcart(all_data = vorb_04, baseline = bline_ob, variables = chosen_vars)
+
+#Compute a static threshold for the QC-ART scores.  Because there is no significant relationship between
+#the QC-ART scores and time since the analysis began, the threshold value is the same for all time points.
+s_threshold <- compute_threshold(scores = vorb_04$QC_Art, baseline = vorb_04$Baseline, time_stamps = vorb_04$Acq_Time_Start, type='static')
+sthresh_df <- s_threshold$Results
+qplot(Time_Stamp,Scores,data=sthresh_df,colour=Baseline)+xlab("Date")+ylab("QC-ART Score")+
+  geom_line(aes(Time_Stamp,Static_Threshold),colour=1)
+  
+  
+#Compute a dynamic threshold for the QC-ART scores.
+d_threshold <- compute_threshold(scores = vorb_04$QC_Art, baseline = vorb_04$Baseline, time_stamps = vorb_04$Acq_Time_Start, type='dynamic')
+dthresh_df <- d_threshold$Results
+qplot(Time_Stamp,Scores,data=dthresh_df,colour=Baseline)+xlab("Date")+ylab("QC-ART Score")+
+  geom_line(aes(Time_Stamp,Dynamic_Threshold),colour=1)
+
+#Both dynamic and static thresholds can be computed in one call to `compute_threshold` by setting the 
+#`type` argument to "both" 
+
+both_thresholds <- compute_threshold(scores = vorb_04$QC_Art, baseline = vorb_04$Baseline, time_stamps = vorb_04$Acq_Time_Start, type='both')
+all_thresh_df <- both_thresholds$Results
+qplot(Time_Stamp,Scores,data=all_thresh_df,colour=Baseline)+xlab("Date")+ylab("QC-ART Score")+
+  geom_line(aes(Time_Stamp,Static_Threshold),colour=1,linetype=1)+
+  geom_line(aes(Time_Stamp,Dynamic_Threshold),colour=1,linetype=2)
+
+}

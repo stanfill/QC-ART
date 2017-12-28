@@ -26,6 +26,7 @@ Computes QC-ART scores
 library(lubridate)
 library(QCART)
 library(dplyr)
+library(ggplot2)
 
 #Load the Amidan et al. (2014) dataset
 data("amidan_et_al")  
