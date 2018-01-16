@@ -49,6 +49,8 @@ qplot(Acq_Time_Start,P_2C,data=vorb_04,xlab="Date")
 qplot(Acq_Time_Start,MS1_Count,data=vorb_04,xlab="Date")
 ```
 
+## Computing QC-ART Scores
+
 To apply QC-ART, the variables used to compute QC-ART scores need to be chosen.  Based on the results of the initial analysis of these data (by Amidan et al. (2014)), the following variables were chosen.
 
 ```{r vars}
@@ -65,6 +67,8 @@ vorb_04$Baseline[bline_ob] <- TRUE
 vorb_04$QC_Art <- qcart(all_data = vorb_04, baseline = bline_ob, variables = chosen_vars)
 qplot(Acq_Time_Start,QC_Art,data=vorb_04,colour=Baseline)+xlab("Date")+ylab("QC-ART Score")
 ```
+
+## Canned Threshold Routines
 
 Once scores are computed, threshold values need to be determined.  Because this is a post-hoc analysis, a QC-ART score that is above the computed threshold should be investigated to see if the sample should be rerun.  The goal of QC-ART, however, is for the scores and baselines to be computed in real-time.  That way, changes in data quality could suggest an instrumentation issue.  The `compute_threshold` function takes the QC-ART scores (computed by `qcart`), baseline indicators and time-stamps then returns a `data.frame` that contains the scores, time-stamps and threshold values.  
 
@@ -86,4 +90,97 @@ dthresh_df <- d_threshold$Results
 
 qplot(Time_Stamp,Scores,data=dthresh_df,colour=Baseline)+xlab("Date")+ylab("QC-ART Score")+
   geom_line(aes(Time_Stamp,Dynamic_Threshold),colour=1)
+```
+
+## Creating a Custom Threshold
+
+The `compute_threshold` function selects an appropriate static or dynamic model from a small set of possible models.  It is quite possible that a more appropriate threshold model could be created for your data.  This section covers what should be considered when fitting a dynamic threshold model and how to assess it's performance.  For a more detailed explanation of dynamic linear models, see [Petris et al. (2009)](http://www.springer.com/us/book/9780387772370).
+
+The dynamic linear models fit by `compute_threshold` are described by the pair of equations
+
+$$
+\log(s_t)=\mu_t+v_t \;\;\text{ and }\;\; \mu_t=\mu_{t-1}+w_t
+$$
+where for $i\geq 1$, $s_t$ is the QC-ART score at time $t$, $\mu_t$ is the true log-scale process mean, $v_t$ is an error term in the observation equation and $w_t$ is the error term in the process model.   The error terms $v_t$ and $w_t$ are assumed to be independent and follow the log-normal distribution.  
+
+Currently `compute_threshold` considers the model above with $\mu_t=\beta_{0,t}+\beta_{1,t}x_t$ where $\beta_{\cdot,t}$ are time-varying regression parameters adn $x_t$ is the clock time since the cohort study began.  Further it's assumed that $v_t\sim N(0,\sigma^2)$ and $w_{t}\sim N_2(0_2,W_t)$ where $\sigma$ is an unknown variance parameter to be estimated from the baseline data and $N_2(0, W_t)$ is the bivariate normal distribution with mean a $2\by 1$ mean vector of zeros and $2\times2$ variance-covariance matrix $W_t$.
+
+The dynamic threshold is then the $95^{th}$ percentile of the so called filtering density of $\mu_t$.  The following code fits this model and computes the dynamic threshold:
+
+```{r}
+library(dlm)
+
+#Convert time stamps into time since cohort study began
+vorb_04 <- vorb_04%>%arrange(Acq_Time_Start)%>%
+  mutate(Time=difftime(Acq_Time_Start,min(Acq_Time_Start),units='hours'))
+
+buildCutpt <- function(theta,xvar){
+  dlmModReg(X=xvar, dV=exp(theta[1]), dW=exp(theta[2:3]),addInt=TRUE) 
+}
+
+#Estimate parameters based on baseline data only
+fit <- dlmMLE(log(vorb_04$QC_Art),parm=rep(0,3),buildCutpt, xvar=matrix(vorb_04$Time,ncol=1))
+    
+#Now apply the model to the full dataset
+modCutpt <- buildCutpt(fit$par, xvar=vorb_04$Time)
+    
+#Filterd estiamte for full data set
+filtQC <- dlmFilter(log(vorb_04$QC_Art),modCutpt)
+filtPred <- filtQC$f
+filtSD <- residuals(filtQC,sd=TRUE)$sd
+    
+Dynamic_Threshold <- qlnorm(0.95,meanlog=filtPred,sdlog=filtSD)
+```
+
+This model can be varied in several ways, depending on if the model assumptions are satisfied.  In particular, are the variance compoenents roughly i.i.d. and normally distributed?  The following code can be used to assess the normality of the residuals; perfect agreement implies a perfect fit, but that doesn't happen with real data.
+
+```{r ,fig.align='center'}
+resids <- residuals(filtQC,sd=FALSE)
+qplot(qnorm(ppoints(length(resids))),sort(resids))+geom_abline(aes(intercept=0,slope=1))+
+  xlab("Theoretical Quantiles")+ylab("Sample Quantiles")
+```
+
+
+The function `tsdiag` will produce plots that can be used to visually assess if there is any more temporal trend in the residuals and for temporal independence.
+
+```{r, fig.align='center',fig.width=5,fig.height=10}
+tsdiag(filtQC,gof.lag = 25)
+```
+
+The fact that the lag 1 and lag 3 rediduals still exhibit some dependence and the [Ljung-Box p-values](https://en.wikipedia.org/wiki/Ljung%E2%80%93Box_test) are vey close to zero indicates a more complex error variance is needed to capture the temporal correlation between these data.  Try adding a second order moving average component (MA(2)) to the model fit above.
+
+
+```{r, fig.align='center',fig.width=5,fig.height=10}
+
+buildCutpt_MA2 <- function(theta,xvar){
+    dlmModReg(X=xvar, dV=1e-7, dW=exp(theta[1:2]),addInt=TRUE)+
+      dlmModARMA(ma=exp(theta[3:4]),sigma2=exp(theta[4]))
+}
+
+#Estimate parameters based on baseline data only
+fit_MA2 <- dlmMLE(log(vorb_04$QC_Art),parm=rep(0,5),buildCutpt_MA2, xvar=matrix(vorb_04$Time,ncol=1))
+    
+#Now apply the model to the full dataset
+modCutpt_MA2 <- buildCutpt_MA2(fit_MA2$par, xvar=vorb_04$Time)
+    
+#Filterd estiamte for full data set
+filtQC_MA2 <- dlmFilter(log(vorb_04$QC_Art),modCutpt_MA2)
+
+tsdiag(filtQC_MA2,gof.lag = 25)
+
+```
+
+Now the lagged residual ACV values are very near 0 and Ljung-Box p-values are very near 1 indiciateing a good fit to the data.  We can now update the dynamic thresholds with this new model.
+
+
+```{r new_dthresh, fig.width=8,fig.height=5,fig.align="center",message=FALSE}
+
+filtPred_MA2 <- filtQC_MA2$f
+filtSD_MA2 <- residuals(filtQC_MA2,sd=TRUE)$sd
+    
+dthresh_df$NewThreshold <- qlnorm(0.95,meanlog=filtPred_MA2,sdlog=filtSD_MA2)
+
+qplot(Time_Stamp,Scores,data=dthresh_df,colour=Baseline)+xlab("Date")+ylab("QC-ART Score")+
+  geom_line(aes(Time_Stamp,NewThreshold),colour=1)+ylim(c(0,250))
+
 ```
