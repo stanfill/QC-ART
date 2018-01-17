@@ -7,6 +7,6 @@ Author: Bryan Stanfill, Lisa Bramer, Allison Thompson, Bobbie-Jo Webb-Robertson
 Maintainer: Bryan Stanfill <bryan.stanfill@pnnl.gov>
 Description: Implements the method QC-ART to track the quality of mass spectrometry data collected over time
 License: BSD
-Suggests: lubridate, dlm
+Suggests: lubridate, dlm, knitr, markdown
 RoxygenNote: 6.0.1
 VignetteBuilder: knitr
